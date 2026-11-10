@@ -38,7 +38,9 @@ test('headings H1-H3 are recognised only at the start of a line', () => {
   assert.equal(M.render('# Title'), '<h1>Title</h1>');
   assert.equal(M.render('## Sub'), '<h2>Sub</h2>');
   assert.equal(M.render('### Small'), '<h3>Small</h3>');
-  assert.equal(M.render('#### Too deep').startsWith('<p>'), true);
+  assert.equal(M.render('#### Four'), '<h4>Four</h4>');
+  assert.equal(M.render('###### Six'), '<h6>Six</h6>');
+  assert.equal(M.render('####### Seven').startsWith('<p>'), true, 'seven hashes is not a heading');
   assert.equal(M.render('issue # 5').startsWith('<p>'), true, 'a hash mid-line is not a heading');
   assert.equal(M.render('#nospace').startsWith('<p>'), true);
 });
@@ -116,4 +118,116 @@ test('the vault uses the mc_vault_v1_ namespace and survives blocked storage', (
   const v2 = M.createVault({ storage: broken });
   assert.equal(v2.write('doc', 'x'), false);
   assert.equal(v2.read('doc', 'fallback'), 'x', 'falls back to memory for this visit');
+});
+
+// ---------- Images ----------
+
+test('images: web and small raster data URIs become img elements with escaped alt text', () => {
+  const h = M.inline('![A "cat" & <dog>](https://example.com/cat.png "Title")');
+  assert.ok(h.startsWith('<img src="https://example.com/cat.png"'), h);
+  assert.ok(h.includes('alt="A &quot;cat&quot; &amp; &lt;dog&gt;"'), h);
+  assert.ok(h.includes('title="Title"'));
+  assert.ok(h.includes('loading="lazy"') && h.includes('referrerpolicy="no-referrer"'));
+  const d = M.inline('![pic](data:image/png;base64,iVBORw0KGgo=)');
+  assert.ok(d.startsWith('<img src="data:image/png;base64,iVBORw0KGgo="'), d);
+});
+
+test('images: SVG, scripts and other schemes are never rendered as images', () => {
+  const svg = M.inline('![x](data:image/svg+xml;base64,PHN2Zz4=)');
+  assert.equal(svg.includes('<img'), false, svg);
+  assert.equal(M.inline('![x](javascript:alert(1))').includes('<img'), false);
+  assert.equal(M.inline('![x](data:text/html;base64,PGI+)').includes('<img'), false);
+  assert.equal(M.isSafeImageUrl('data:image/svg+xml;base64,AAAA'), false);
+  assert.equal(M.isSafeImageUrl('https://example.com/a.webp'), true);
+});
+
+test('images: an unsafe image is shown as its typed text, not as markup', () => {
+  assert.equal(M.inline('![x](javascript:alert(1))'), '![x](javascript:alert(1))');
+});
+
+// ---------- Horizontal rules, headings, emphasis ----------
+
+test('horizontal rules: three or more dashes, stars or underscores on their own line', () => {
+  assert.equal(M.render('---'), '<hr>');
+  assert.equal(M.render('* * *'), '<hr>');
+  assert.equal(M.render('___'), '<hr>');
+  assert.equal(M.render('--'), '<p>--</p>', 'two dashes are text');
+});
+
+test('strikethrough and bold-italic', () => {
+  assert.equal(M.inline('~~gone~~ and kept'), '<del>gone</del> and kept');
+  assert.equal(M.inline('***both***'), '<strong><em>both</em></strong>');
+  assert.equal(M.inline('~~unclosed'), '~~unclosed');
+});
+
+test('escapes: a backslash shows the next symbol literally', () => {
+  const bs = String.fromCharCode(92);
+  assert.equal(M.inline(bs + "*not italic" + bs + "*"), "*not italic*");
+  assert.equal(M.inline(bs + "`not code" + bs + "`"), "`not code`");
+  assert.equal(M.inline("a " + bs + " b"), "a " + bs + " b", "a backslash before a space is just a backslash");
+});
+
+test('autolinks: angle-bracket web links become links', () => {
+  const h = M.inline('<https://example.com/x>');
+  assert.ok(h.startsWith('<a href="https://example.com/x"'), h);
+  assert.equal(M.inline('<script>').includes('<a '), false);
+});
+
+// ---------- Lists ----------
+
+test('nested lists follow indentation', () => {
+  const html = M.render('- one\n  - one a\n  - one b\n- two');
+  assert.equal(html, '<ul><li>one<ul><li>one a</li><li>one b</li></ul></li><li>two</li></ul>');
+});
+
+test('task lists show a disabled checkbox, checked or not', () => {
+  const html = M.render('- [ ] todo\n- [x] done');
+  assert.ok(html.includes('<li class="task"><input type="checkbox" disabled> todo</li>'), html);
+  assert.ok(html.includes('<input type="checkbox" disabled checked> done'), html);
+});
+
+test('a change between bullets and numbers starts a new list', () => {
+  assert.equal(M.render('- a\n1. b'), '<ul><li>a</li></ul>' + String.fromCharCode(10) + '<ol><li>b</li></ol>');
+});
+
+// ---------- Tables ----------
+
+test('tables: header, body rows and alignment from the delimiter row', () => {
+  const html = M.render('| Name | Qty | Price |\n| :--- | :---: | ---: |\n| Tea | 2 | 50 |\n| Milk | 1 | 120 |');
+  assert.ok(html.startsWith('<div class="table-wrap"><table><thead><tr>'), html);
+  assert.ok(html.includes('<th class="al-left">Name</th>'));
+  assert.ok(html.includes('<th class="al-center">Qty</th>'));
+  assert.ok(html.includes('<th class="al-right">Price</th>'));
+  assert.ok(html.includes('<td class="al-left">Tea</td>'));
+  assert.ok(html.includes('<td class="al-right">120</td>'));
+});
+
+test('tables: short rows are padded and cell text is escaped', () => {
+  const html = M.render('a | b\n--|--\n<b>x</b>');
+  assert.ok(html.includes('&lt;b&gt;x&lt;/b&gt;'));
+  assert.ok(html.includes('<td class="al-left"></td>'), 'missing cell is empty');
+});
+
+test('tables: an escaped pipe stays inside its cell', () => {
+  const bs = String.fromCharCode(92);
+  const html = M.render('a | b' + String.fromCharCode(10) + '--|--' + String.fromCharCode(10) + 'x ' + bs + '| y | z');
+  assert.ok(html.includes('x | y'), html);
+});
+
+test('tables: a line with a pipe but no delimiter row is just text', () => {
+  assert.ok(M.render('a | b').startsWith('<p>'));
+});
+
+// ---------- Robustness ----------
+
+test('the parser handles very deep nesting without crashing', () => {
+  const deep = Array.from({ length: 40 }, (_, k) => ' '.repeat(k * 2) + '- item ' + k).join('\n');
+  assert.ok(M.render(deep).includes('item 39'));
+});
+
+test('very long single lines finish quickly', () => {
+  const line = 'a *b* '.repeat(3000) + '**';
+  const t0 = Date.now();
+  M.render(line);
+  assert.ok(Date.now() - t0 < 2000);
 });

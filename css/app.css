@@ -319,6 +319,66 @@ h1, h2, h3 { margin: 0; line-height: 1.2; }
   .doc { padding: 14px; }
 }
 
+/* Grid items may shrink to the screen width. Code and tables scroll inside their own boxes. */
+.workbench > *,
+.panel > *,
+.doc {
+  min-width: 0;
+  max-width: 100%;
+}
+.doc pre.code { max-width: 100%; }
+.doc table { min-width: 0; }
+
+/* Pictures, tables, rules, strikethrough and task lists in the live view */
+.doc h4 { font-size: 15px; color: var(--gold); }
+.doc h5, .doc h6 { font-size: 14px; color: var(--muted); }
+.doc img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 10px auto;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 0 18px rgba(0, 212, 255, 0.25);
+}
+.doc .img-fallback {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--muted);
+  color: var(--muted);
+  font-size: 13px;
+}
+.doc hr {
+  border: 0;
+  height: 2px;
+  margin: 18px 0;
+  background: linear-gradient(90deg, transparent, var(--violet), var(--info), transparent);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.4);
+}
+.doc del { color: var(--muted); }
+.doc li.task { list-style: none; margin-left: 0; }
+.doc li.task input { accent-color: var(--up); margin-right: 4px; }
+.doc .table-wrap {
+  max-width: 100%;
+  overflow-x: auto;      /* wide tables scroll inside their own box, never the page */
+  margin: 12px 0;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+}
+.doc table { border-collapse: collapse; width: 100%; min-width: 220px; font-size: 14px; }
+.doc th, .doc td { padding: 8px 10px; border-bottom: 1px solid var(--glass-border); }
+.doc th {
+  color: var(--info);
+  background: rgba(0, 212, 255, 0.08);
+  text-shadow: 0 0 8px rgba(0, 212, 255, 0.4);
+  font-weight: 800;
+}
+.doc tr:last-child td { border-bottom: 0; }
+.doc .al-center { text-align: center; }
+.doc .al-right { text-align: right; }
+.doc .al-left { text-align: left; }
+
 /* ---------- Signature footer: fixed at the bottom, one line, never wraps ---------- */
 .footer {
   position: fixed;
